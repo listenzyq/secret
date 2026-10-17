@@ -1,11 +1,24 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, Float, Html } from '@react-three/drei'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import * as THREE from 'three'
 
 type Curiosity = { id: string; content: string; inspiration: string; kind: '恒星' | '小行星'; createdAt: string; trails: Trail[] }
 type Trail = { id: string; content: string; createdAt: string }
 type ConnectionStatus = 'pending' | 'confirmed' | 'independent' | 'later'
+
+class CanvasErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('3D scene failed to initialize', error, info) }
+  render() { return this.state.error ? <div className="canvas-fallback"><strong>3D 星图暂时无法加载</strong><span>你的好奇内容仍然可以继续使用。</span></div> : this.props.children }
+}
+
+const storage = {
+  get(key: string, fallback: string) { try { return localStorage.getItem(key) ?? fallback } catch { return fallback } },
+  set(key: string, value: string) { try { localStorage.setItem(key, value) } catch { /* Persistence is optional in restricted browsers. */ } },
+}
+function createId() { return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}` }
 
 const DEMO_CURIOSITIES = [
   { id: 'demo-1', content: '为什么夜晚的城市让人更有灵感？', inspiration: '示例宇宙 · 林', kind: '恒星' as const },
@@ -13,7 +26,7 @@ const DEMO_CURIOSITIES = [
 ]
 
 function loadCuriosities(): Curiosity[] {
-  try { return JSON.parse(localStorage.getItem('secret-universe-curiosities') || '[]') } catch { return [] }
+  try { return JSON.parse(storage.get('secret-universe-curiosities', '[]')) } catch { return [] }
 }
 function formatDate(value: string) { return new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }
 
@@ -48,20 +61,20 @@ function App() {
   const [content, setContent] = useState('')
   const [inspiration, setInspiration] = useState('')
   const [trailText, setTrailText] = useState('')
-  const [connection, setConnection] = useState<ConnectionStatus>(() => (localStorage.getItem('secret-universe-connection') as ConnectionStatus | null) || 'pending')
+  const [connection, setConnection] = useState<ConnectionStatus>(() => storage.get('secret-universe-connection', 'pending') as ConnectionStatus)
   const [notice, setNotice] = useState('')
   const selected = curiosities.find(item => item.id === selectedId) || null
-  useEffect(() => localStorage.setItem('secret-universe-curiosities', JSON.stringify(curiosities)), [curiosities])
-  useEffect(() => localStorage.setItem('secret-universe-connection', connection), [connection])
+  useEffect(() => storage.set('secret-universe-curiosities', JSON.stringify(curiosities)), [curiosities])
+  useEffect(() => storage.set('secret-universe-connection', connection), [connection])
   const create = () => {
     if (!content.trim()) return
-    const item: Curiosity = { id: crypto.randomUUID(), content: content.trim(), inspiration: inspiration.trim(), kind: curiosities.length ? '小行星' : '恒星', createdAt: new Date().toISOString(), trails: [] }
+    const item: Curiosity = { id: createId(), content: content.trim(), inspiration: inspiration.trim(), kind: curiosities.length ? '小行星' : '恒星', createdAt: new Date().toISOString(), trails: [] }
     setCuriosities(items => [...items, item]); setContent(''); setInspiration(''); setShowCreate(false); setSelectedId(item.id); setNotice(item.kind === '恒星' ? '第一颗恒星已经点亮。' : '新的小行星已进入你的宇宙。')
   }
-  const addTrail = () => { if (!selected || !trailText.trim()) return; const trail = { id: crypto.randomUUID(), content: trailText.trim(), createdAt: new Date().toISOString() }; setCuriosities(items => items.map(item => item.id === selected.id ? { ...item, trails: [...item.trails, trail] } : item)); setTrailText(''); setNotice('好奇轨迹已记录。') }
+  const addTrail = () => { if (!selected || !trailText.trim()) return; const trail = { id: createId(), content: trailText.trim(), createdAt: new Date().toISOString() }; setCuriosities(items => items.map(item => item.id === selected.id ? { ...item, trails: [...item.trails, trail] } : item)); setTrailText(''); setNotice('好奇轨迹已记录。') }
   const setConnectionStatus = (status: ConnectionStatus) => { setConnection(status); setNotice(status === 'confirmed' ? '连接已由你确认。' : status === 'independent' ? '这两个好奇点将保持独立。' : '先把这个连接放在一旁。') }
   return <main className="app-shell">
-    <div className="cosmos"><Canvas camera={{ position: [0, 4.8, 8.8], fov: 52 }}><color attach="background" args={['#080b1c']} /><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} /><Nebula />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas><div className="cosmos-vignette" /></div>
+    <div className="cosmos"><CanvasErrorBoundary><Canvas camera={{ position: [0, 4.8, 8.8], fov: 52 }}><color attach="background" args={['#080b1c']} /><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} /><Nebula />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas></CanvasErrorBoundary><div className="cosmos-vignette" /></div>
     <header className="topbar"><div className="brand"><span className="brand-mark">✦</span><div><strong>我的秘密宇宙</strong><small>把好奇，放进星图里</small></div></div><button className="ghost-button" onClick={() => setShowExplore(true)}>漫游示例宇宙 <span>↗</span></button></header>
     <section className="hero-copy"><p className="eyebrow">YOUR CURIOUS UNIVERSE</p><h1>{curiosities.length ? '你的宇宙，正在生长' : '此刻，你在好奇什么？'}</h1><p>{curiosities.length ? '每一个问题都在等待一次新的靠近。拖动视野，看看你的星图。' : '从一个微小的问题开始，创造属于你的第一颗恒星。'}</p>{!curiosities.length && <button className="primary-button" onClick={() => setShowCreate(true)}>创造第一颗恒星 <span>＋</span></button>}</section>
     <aside className="stats-panel"><span><b>{curiosities.length}</b> 个好奇点</span><i /> <span><b>{curiosities.reduce((n, x) => n + x.trails.length, 0)}</b> 条轨迹</span></aside>
