@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Stars, Float, Html } from '@react-three/drei'
+import { OrbitControls, Stars, Float, Html, Sparkles } from '@react-three/drei'
 import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import * as THREE from 'three'
 
@@ -33,16 +33,35 @@ function formatDate(value: string) { return new Intl.DateTimeFormat('zh-CN', { m
 function Nebula() {
   const group = useRef<THREE.Group>(null)
   useFrame((_, delta) => { if (group.current) { group.current.rotation.y += delta * 0.025; group.current.rotation.x = Math.sin(Date.now() * 0.00015) * 0.04 } })
-  return <group ref={group}><Stars radius={80} depth={45} count={1800} factor={2.1} saturation={0.2} fade speed={0.35} /><mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[12, 64]} /><meshBasicMaterial color="#111936" transparent opacity={0.23} /></mesh></group>
+  const compact = typeof window !== 'undefined' && window.innerWidth < 700
+  return <group ref={group}>
+    <Stars radius={80} depth={45} count={compact ? 900 : 1800} factor={2.1} saturation={0.35} fade speed={0.35} />
+    <Sparkles count={compact ? 45 : 90} scale={[18, 8, 18]} size={2.5} speed={0.18} opacity={0.42} color="#aab7ff" />
+    <Sparkles count={compact ? 18 : 36} scale={[12, 5, 12]} size={5} speed={0.1} opacity={0.18} color="#d59cff" />
+    <mesh position={[-4, 0.5, -3]} scale={[5.5, 1.4, 2.2]}><sphereGeometry args={[1, 32, 32]} /><meshBasicMaterial color="#392a75" transparent opacity={0.18} depthWrite={false} /></mesh>
+    <mesh position={[4, -0.6, -5]} scale={[4.5, 1.1, 2]}><sphereGeometry args={[1, 32, 32]} /><meshBasicMaterial color="#203b7d" transparent opacity={0.16} depthWrite={false} /></mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[12, 64]} /><meshBasicMaterial color="#111936" transparent opacity={0.23} /></mesh>
+  </group>
+}
+
+function OrbitPath({ radius }: { radius: number }) {
+  const points = useMemo(() => Array.from({ length: 96 }, (_, index) => { const angle = (index / 95) * Math.PI * 2; return new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius) }), [radius])
+  return <lineLoop rotation={[0.04, 0, 0]}><bufferGeometry><bufferAttribute attach="attributes-position" count={points.length} array={new Float32Array(points.flatMap(point => point.toArray()))} itemSize={3} /></bufferGeometry><lineBasicMaterial color="#6473bd" transparent opacity={0.16} /></lineLoop>
 }
 
 function Planet({ item, index, selected, onSelect }: { item: Curiosity; index: number; selected: boolean; onSelect: () => void }) {
   const position: [number, number, number] = item.kind === '恒星' ? [0, 0, 0] : [Math.cos(index * 2.1) * (3 + index * 0.45), Math.sin(index * 1.7) * 0.42, Math.sin(index * 2.1) * (3 + index * 0.45)]
   const color = item.kind === '恒星' ? '#f6c66f' : '#8ba7ef'
+  const group = useRef<THREE.Group>(null)
+  useFrame((_, delta) => { if (group.current) group.current.rotation.y += delta * (item.kind === '恒星' ? 0.08 : 0.2) })
+  const radius = 3 + index * 0.45
   return <Float speed={1.1 + index * 0.1} rotationIntensity={0.12} floatIntensity={0.18}>
-    <group position={position} onClick={(event) => { event.stopPropagation(); onSelect() }}>
-      <mesh><sphereGeometry args={[item.kind === '恒星' ? 0.58 : 0.34, 32, 32]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={selected ? 1.4 : 0.55} roughness={0.4} /></mesh>
-      <mesh scale={selected ? 1.45 : 1.2}><sphereGeometry args={[item.kind === '恒星' ? 0.7 : 0.43, 24, 24]} /><meshBasicMaterial color={color} transparent opacity={selected ? 0.16 : 0.08} /></mesh>
+    <group position={position} ref={group} onClick={(event) => { event.stopPropagation(); onSelect() }}>
+      {item.kind === '小行星' && <group position={[-position[0], -position[1], -position[2]]}><OrbitPath radius={radius} /></group>}
+      {item.kind === '恒星' && <pointLight color="#ffd78c" intensity={selected ? 18 : 10} distance={7} decay={2} />}
+      <mesh><sphereGeometry args={[item.kind === '恒星' ? 0.58 : 0.34, 32, 32]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={selected ? 1.4 : 0.55} roughness={item.kind === '恒星' ? 0.25 : 0.82} metalness={item.kind === '恒星' ? 0.05 : 0.18} /></mesh>
+      <mesh scale={selected ? 1.55 : 1.25}><sphereGeometry args={[item.kind === '恒星' ? 0.7 : 0.43, 24, 24]} /><meshBasicMaterial color={color} transparent opacity={selected ? 0.2 : 0.08} depthWrite={false} /></mesh>
+      {item.kind === '恒星' && <mesh scale={1.9}><sphereGeometry args={[0.7, 24, 24]} /><meshBasicMaterial color="#f6c66f" transparent opacity={0.045} depthWrite={false} /></mesh>}
       <Html position={[0, -0.78, 0]} center distanceFactor={8}><span className={`planet-label ${selected ? 'active' : ''}`}>{item.kind}</span></Html>
     </group>
   </Float>
