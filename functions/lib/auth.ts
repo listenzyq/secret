@@ -70,4 +70,4 @@ export async function clearLoginFailures(env: Env, key: string) { await env.DB.p
 
 export function sessionCookie(value: string, maxAge = SESSION_TTL_SECONDS) { return `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${maxAge}` }
 export function json(data: unknown, init: ResponseInit = {}) { return new Response(JSON.stringify(data), { ...init, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...(init.headers || {}) } }) }
-export function parseBody(request: Request) { return request.json() as Promise<{ username?: string; password?: string }> }
+export function parseBody<T extends Record<string, unknown> = { username?: string; password?: string }>(request: Request) { return request.json() as Promise<T> }
