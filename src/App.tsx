@@ -49,6 +49,39 @@ function OrbitPath({ radius }: { radius: number }) {
   return <lineLoop rotation={[0.04, 0, 0]}><bufferGeometry><bufferAttribute attach="attributes-position" count={points.length} array={new Float32Array(points.flatMap(point => point.toArray()))} itemSize={3} /></bufferGeometry><lineBasicMaterial color="#6473bd" transparent opacity={0.16} /></lineLoop>
 }
 
+function CelestialBackdrop() {
+  const group = useRef<THREE.Group>(null)
+  const pointer = useRef({ x: 0, y: 0 })
+  useEffect(() => {
+    const move = (event: PointerEvent) => { pointer.current.x = (event.clientX / window.innerWidth - 0.5) * 2; pointer.current.y = (event.clientY / window.innerHeight - 0.5) * 2 }
+    window.addEventListener('pointermove', move)
+    return () => window.removeEventListener('pointermove', move)
+  }, [])
+  useFrame((_, delta) => {
+    if (!group.current) return
+    group.current.rotation.y += delta * 0.008
+    group.current.position.x = THREE.MathUtils.lerp(group.current.position.x, pointer.current.x * 0.18, 0.025)
+    group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, pointer.current.y * -0.12, 0.025)
+  })
+  return <group ref={group}>
+    <Float speed={0.35} rotationIntensity={0.08} floatIntensity={0.15}>
+      <group position={[5.2, 1.3, -6.5]}>
+        <mesh><sphereGeometry args={[1.05, 32, 32]} /><meshStandardMaterial color="#b66b4b" emissive="#4b1c2c" emissiveIntensity={0.22} roughness={0.72} metalness={0.08} /></mesh>
+        <mesh rotation={[Math.PI / 2.7, 0.18, 0]}><torusGeometry args={[1.35, 0.055, 10, 64]} /><meshStandardMaterial color="#d19f75" emissive="#3a2637" emissiveIntensity={0.3} transparent opacity={0.72} /></mesh>
+        <pointLight color="#e29a6d" intensity={1.3} distance={4} />
+      </group>
+    </Float>
+    <Float speed={0.25} rotationIntensity={0.05} floatIntensity={0.12}>
+      <group position={[-5.4, -1.2, -7.5]}>
+        <mesh><sphereGeometry args={[0.82, 32, 32]} /><meshStandardMaterial color="#386eaa" emissive="#122f6c" emissiveIntensity={0.45} roughness={0.48} metalness={0.14} /></mesh>
+        <mesh scale={1.18}><sphereGeometry args={[0.82, 24, 24]} /><meshBasicMaterial color="#4ea4ff" transparent opacity={0.12} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+        <mesh position={[1.15, 0.16, 0.1]}><sphereGeometry args={[0.19, 20, 20]} /><meshStandardMaterial color="#aaa2cc" roughness={0.9} /></mesh>
+      </group>
+    </Float>
+    <Float speed={0.18} rotationIntensity={0.04} floatIntensity={0.09}><mesh position={[7, -2.4, -10]}><sphereGeometry args={[0.48, 24, 24]} /><meshStandardMaterial color="#8c73bb" emissive="#3d2863" emissiveIntensity={0.4} roughness={0.8} /></mesh></Float>
+  </group>
+}
+
 function Planet({ item, index, selected, onSelect }: { item: Curiosity; index: number; selected: boolean; onSelect: () => void }) {
   const position: [number, number, number] = item.kind === '恒星' ? [0, 0, 0] : [Math.cos(index * 2.1) * (3 + index * 0.45), Math.sin(index * 1.7) * 0.42, Math.sin(index * 2.1) * (3 + index * 0.45)]
   const color = item.kind === '恒星' ? '#f6c66f' : '#8ba7ef'
@@ -93,7 +126,7 @@ function App() {
   const addTrail = () => { if (!selected || !trailText.trim()) return; const trail = { id: createId(), content: trailText.trim(), createdAt: new Date().toISOString() }; setCuriosities(items => items.map(item => item.id === selected.id ? { ...item, trails: [...item.trails, trail] } : item)); setTrailText(''); setNotice('好奇轨迹已记录。') }
   const setConnectionStatus = (status: ConnectionStatus) => { setConnection(status); setNotice(status === 'confirmed' ? '连接已由你确认。' : status === 'independent' ? '这两个好奇点将保持独立。' : '先把这个连接放在一旁。') }
   return <main className="app-shell">
-    <div className="cosmos"><CanvasErrorBoundary><Canvas camera={{ position: [0, 4.8, 8.8], fov: 52 }}><color attach="background" args={['#080b1c']} /><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} /><Nebula />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas></CanvasErrorBoundary><div className="cosmos-vignette" /></div>
+    <div className="cosmos"><CanvasErrorBoundary><Canvas camera={{ position: [0, 4.8, 8.8], fov: 52 }}><color attach="background" args={['#080b1c']} /><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} /><Nebula /><CelestialBackdrop />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas></CanvasErrorBoundary><div className="cosmos-vignette" /></div>
     <header className="topbar"><div className="brand"><span className="brand-mark">✦</span><div><strong>我的秘密宇宙</strong><small>把好奇，放进星图里</small></div></div><button className="ghost-button" onClick={() => setShowExplore(true)}>漫游示例宇宙 <span>↗</span></button></header>
     <section className="hero-copy"><p className="eyebrow">YOUR CURIOUS UNIVERSE</p><h1>{curiosities.length ? '你的宇宙，正在生长' : '此刻，你在好奇什么？'}</h1><p>{curiosities.length ? '每一个问题都在等待一次新的靠近。拖动视野，看看你的星图。' : '从一个微小的问题开始，创造属于你的第一颗恒星。'}</p>{!curiosities.length && <button className="primary-button" onClick={() => setShowCreate(true)}>创造第一颗恒星 <span>＋</span></button>}</section>
     <aside className="stats-panel"><span><b>{curiosities.length}</b> 个好奇点</span><i /> <span><b>{curiosities.reduce((n, x) => n + x.trails.length, 0)}</b> 条轨迹</span></aside>
