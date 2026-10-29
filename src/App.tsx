@@ -21,6 +21,26 @@ const storage = {
 }
 function createId() { return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}` }
 
+function createPlanetTexture(kind: Curiosity['kind']) {
+  if (typeof document === 'undefined') return undefined
+  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 128
+  const context = canvas.getContext('2d'); if (!context) return undefined
+  const image = context.createImageData(canvas.width, canvas.height)
+  const base = kind === '恒星' ? [224, 137, 56] : [72, 112, 171]
+  for (let y = 0; y < canvas.height; y += 1) for (let x = 0; x < canvas.width; x += 1) {
+    const noise = Math.sin(x * 0.12) * 10 + Math.sin(y * 0.21) * 8 + Math.sin((x + y) * 0.045) * 13
+    const light = Math.max(0, 1 - Math.abs(x / canvas.width - 0.36) * 1.6)
+    const index = (y * canvas.width + x) * 4
+    image.data[index] = Math.min(255, base[0] + noise + light * 28)
+    image.data[index + 1] = Math.min(255, base[1] + noise * 0.65 + light * 20)
+    image.data[index + 2] = Math.min(255, base[2] + noise * 0.4 + light * 16)
+    image.data[index + 3] = 255
+  }
+  context.putImageData(image, 0, 0)
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
 const DEMO_CURIOSITIES = [
   { id: 'demo-1', content: '为什么夜晚的城市让人更有灵感？', inspiration: '示例宇宙 · 林', kind: '恒星' as const },
   { id: 'demo-2', content: '植物会记住被触碰的感觉吗？', inspiration: '示例宇宙 · 林', kind: '小行星' as const },
@@ -45,8 +65,9 @@ function Nebula() {
     <Stars radius={80} depth={45} count={compact ? 900 : 1800} factor={2.1} saturation={0.35} fade speed={0.35} />
     <Sparkles count={compact ? 45 : 90} scale={[18, 8, 18]} size={2.5} speed={0.18} opacity={0.42} color="#aab7ff" />
     <Sparkles count={compact ? 18 : 36} scale={[12, 5, 12]} size={5} speed={0.1} opacity={0.18} color="#d59cff" />
-    <mesh position={[-4, 0.5, -3]} scale={[5.5, 1.4, 2.2]}><sphereGeometry args={[1, 32, 32]} /><meshBasicMaterial color="#392a75" transparent opacity={0.18} depthWrite={false} /></mesh>
-    <mesh position={[4, -0.6, -5]} scale={[4.5, 1.1, 2]}><sphereGeometry args={[1, 32, 32]} /><meshBasicMaterial color="#203b7d" transparent opacity={0.16} depthWrite={false} /></mesh>
+    <mesh position={[-3.8, 0.8, -4]} rotation={[0.2, 0.3, -0.3]} scale={[6.5, 1.8, 2.6]}><sphereGeometry args={[1, 48, 32]} /><meshBasicMaterial color="#673caa" transparent opacity={0.23} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+    <mesh position={[3.6, -0.5, -5]} rotation={[-0.18, -0.4, 0.25]} scale={[6.2, 1.5, 2.5]}><sphereGeometry args={[1, 48, 32]} /><meshBasicMaterial color="#185d9f" transparent opacity={0.22} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+    <mesh position={[-0.5, 0.2, -7]} rotation={[0, 0.4, 0.1]} scale={[8, 0.7, 1.3]}><sphereGeometry args={[1, 48, 24]} /><meshBasicMaterial color="#bd4fc7" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
     <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[12, 64]} /><meshBasicMaterial color="#111936" transparent opacity={0.23} /></mesh>
   </group>
 }
@@ -93,13 +114,15 @@ function Planet({ item, index, selected, onSelect }: { item: Curiosity; index: n
   const position: [number, number, number] = item.kind === '恒星' ? [0, 0, 0] : [Math.cos(index * 2.1) * (3 + index * 0.45), Math.sin(index * 1.7) * 0.42, Math.sin(index * 2.1) * (3 + index * 0.45)]
   const color = item.kind === '恒星' ? '#f6c66f' : '#8ba7ef'
   const group = useRef<THREE.Group>(null)
+  const texture = useMemo(() => createPlanetTexture(item.kind), [item.kind])
   useFrame((_, delta) => { if (group.current) group.current.rotation.y += delta * (item.kind === '恒星' ? 0.08 : 0.2) })
   const radius = 3 + index * 0.45
   return <Float speed={1.1 + index * 0.1} rotationIntensity={0.12} floatIntensity={0.18}>
     <group position={position} ref={group} onClick={(event) => { event.stopPropagation(); onSelect() }}>
       {item.kind === '小行星' && <group position={[-position[0], -position[1], -position[2]]}><OrbitPath radius={radius} /></group>}
       {item.kind === '恒星' && <pointLight color="#ffd78c" intensity={selected ? 18 : 10} distance={7} decay={2} />}
-      <mesh><sphereGeometry args={[item.kind === '恒星' ? 0.58 : 0.34, 32, 32]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={selected ? 1.4 : 0.55} roughness={item.kind === '恒星' ? 0.25 : 0.82} metalness={item.kind === '恒星' ? 0.05 : 0.18} /></mesh>
+      <mesh><sphereGeometry args={[item.kind === '恒星' ? 0.7 : 0.42, 48, 48]} /><meshStandardMaterial map={texture} color={color} emissive={color} emissiveIntensity={selected ? 1.4 : 0.55} roughness={item.kind === '恒星' ? 0.3 : 0.74} metalness={item.kind === '恒星' ? 0.08 : 0.22} /></mesh>
+      <mesh scale={item.kind === '恒星' ? 1.18 : 1.1}><sphereGeometry args={[item.kind === '恒星' ? 0.7 : 0.42, 32, 32]} /><meshBasicMaterial color={item.kind === '恒星' ? '#ffd88c' : '#6faeff'} transparent opacity={item.kind === '恒星' ? 0.12 : 0.07} blending={THREE.AdditiveBlending} side={THREE.BackSide} depthWrite={false} /></mesh>
       <mesh scale={selected ? 1.55 : 1.25}><sphereGeometry args={[item.kind === '恒星' ? 0.7 : 0.43, 24, 24]} /><meshBasicMaterial color={color} transparent opacity={selected ? 0.2 : 0.08} depthWrite={false} /></mesh>
       {item.kind === '恒星' && <mesh scale={1.9}><sphereGeometry args={[0.7, 24, 24]} /><meshBasicMaterial color="#f6c66f" transparent opacity={0.045} depthWrite={false} /></mesh>}
       <Html position={[0, -0.78, 0]} center distanceFactor={8}><span className={`planet-label ${selected ? 'active' : ''}`}>{item.kind}</span></Html>
@@ -166,12 +189,13 @@ function App() {
   }
   const addTrail = () => { if (!selected || !trailText.trim()) return; const trail = { id: createId(), content: trailText.trim(), createdAt: new Date().toISOString() }; const save = user ? api<{ trail: typeof trail }>('/api/data/trails', { method: 'POST', body: JSON.stringify({ curiosityId: selected.id, content: trail.content }) }).then(result => result.trail) : Promise.resolve(trail); save.then(saved => { setCuriosities(items => items.map(item => item.id === selected.id ? { ...item, trails: [...item.trails, saved] } : item)); setTrailText(''); setNotice('好奇轨迹已记录。') }).catch(error => setNotice(error instanceof Error ? error.message : '保存失败。')) }
   const setConnectionStatus = (status: ConnectionStatus) => { setConnection(status); if (user) api('/api/data/connection', { method: 'POST', body: JSON.stringify({ status }) }).catch(() => undefined); setNotice(status === 'confirmed' ? '连接已由你确认。' : status === 'independent' ? '这两个好奇点将保持独立。' : '先把这个连接放在一旁。') }
+  const openCreate = () => { if (!user) { setAuthMode('register'); setAuthError('记录好奇前需要先注册或登录。'); setShowAuth(true); return } setShowCreate(true) }
   return <main className="app-shell">
     <div className="cosmos"><CanvasErrorBoundary><Canvas camera={{ position: [0, 4.8, 8.8], fov: 52 }}><color attach="background" args={['#080b1c']} /><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} /><Nebula /><CelestialBackdrop />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas></CanvasErrorBoundary><div className="cosmos-vignette" /></div>
     <header className="topbar"><div className="brand"><span className="brand-mark">✦</span><div><strong>我的秘密宇宙</strong><small>把好奇，放进星图里</small></div></div><div className="topbar-actions"><button className="ghost-button" onClick={() => setShowExplore(true)}>漫游示例宇宙 <span>↗</span></button>{user ? <div className="account-menu"><span className="account-name">@{user.username}</span><button className="ghost-button compact" onClick={logout}>退出登录</button></div> : <button className="ghost-button" onClick={() => { setAuthMode('login'); setAuthError(''); setShowAuth(true) }}>登录 / 注册</button>}</div></header>
-    <section className="hero-copy"><p className="eyebrow">YOUR CURIOUS UNIVERSE</p><h1>{curiosities.length ? '你的宇宙，正在生长' : '此刻，你在好奇什么？'}</h1><p>{curiosities.length ? '每一个问题都在等待一次新的靠近。拖动视野，看看你的星图。' : '从一个微小的问题开始，创造属于你的第一颗恒星。'}</p>{!curiosities.length && <button className="primary-button" onClick={() => setShowCreate(true)}>创造第一颗恒星 <span>＋</span></button>}</section>
+    <section className={`hero-copy ${curiosities.length ? '' : 'hero-empty'}`}><p className="eyebrow">YOUR CURIOUS UNIVERSE</p><h1>{curiosities.length ? '你的宇宙，正在生长' : '此刻，你在好奇什么？'}</h1><p>{curiosities.length ? '每一个问题都在等待一次新的靠近。拖动视野，看看你的星图。' : '从一个微小的问题开始，创造属于你的第一颗恒星。'}</p>{!curiosities.length && <button className="primary-button" onClick={openCreate}>创造第一颗恒星 <span>＋</span></button>}</section>
     <aside className="stats-panel"><span><b>{curiosities.length}</b> 个好奇点</span><i /> <span><b>{curiosities.reduce((n, x) => n + x.trails.length, 0)}</b> 条轨迹</span></aside>
-    {curiosities.length > 0 && <button className="create-fab" onClick={() => setShowCreate(true)}>＋ <span>记录新的好奇</span></button>}
+    {curiosities.length > 0 && <button className="create-fab" onClick={openCreate}>＋ <span>记录新的好奇</span></button>}
     {notice && <div className="notice" onAnimationEnd={() => setNotice('')}>{notice}</div>}
     {selected && <section className="detail-card"><button className="close-button" onClick={() => setSelectedId(null)}>×</button><span className="tag">{selected.kind} · {formatDate(selected.createdAt)}</span><h2>{selected.content}</h2>{selected.inspiration && <p className="muted">灵感来源：{selected.inspiration}</p>}<div className="trail-section"><div className="section-title"><span>好奇轨迹</span><em>{selected.trails.length} 条记录</em></div>{selected.trails.length ? <div className="timeline">{selected.trails.map(trail => <div className="timeline-item" key={trail.id}><span className="timeline-dot" /><div><p>{trail.content}</p><small>{formatDate(trail.createdAt)}</small></div></div>)}</div> : <p className="empty-trail">还没有轨迹，记录一次探索吧。</p>}<div className="trail-input"><input value={trailText} onChange={e => setTrailText(e.target.value)} placeholder="记录这次探索发现了什么…" onKeyDown={e => e.key === 'Enter' && addTrail()} /><button onClick={addTrail}>记录</button></div></div><div className="recommendations"><span>继续探索</span><button onClick={() => setShowExplore(true)}>看看类似的好奇有谁在好奇 <b>→</b></button><button onClick={() => setShowExplore(true)}>看看别人在好奇什么 <b>→</b></button></div></section>}
     {curiosities.length > 0 && !selected && <section className="connection-card"><div className="connection-heading"><span className="ai-orb">✧</span><div><span className="tag">系统提出的潜在连接</span><h3>夜晚的光，是否也在唤醒植物？</h3></div></div><p>这两个好奇点都在探索「环境如何影响生命的感受」，也许它们之间存在一条还未命名的轨迹。</p>{connection === 'pending' ? <div className="connection-actions"><button className="primary-small" onClick={() => setConnectionStatus('confirmed')}>确认连接</button><button onClick={() => setConnectionStatus('independent')}>保持独立</button><button onClick={() => setConnectionStatus('later')}>暂不判断</button></div> : <div className="connection-state">{connection === 'confirmed' ? '✦ 这是你确认的连接' : connection === 'independent' ? '○ 你选择让它们保持独立' : '… 暂时搁置这条潜在连接'}</div>}</section>}
