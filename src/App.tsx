@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Stars, Float, Html, Sparkles } from '@react-three/drei'
+import { OrbitControls, Float, Html } from '@react-three/drei'
 import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import * as THREE from 'three'
 
@@ -54,70 +54,33 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 }
 function formatDate(value: string) { return new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }
 
-function Nebula() {
-  const group = useRef<THREE.Group>(null)
-  useFrame((_, delta) => { if (group.current) { group.current.rotation.y += delta * 0.025; group.current.rotation.x = Math.sin(Date.now() * 0.00015) * 0.04 } })
-  const compact = typeof window !== 'undefined' && window.innerWidth < 700
-  return <group ref={group}>
-    <Stars radius={80} depth={45} count={compact ? 900 : 1800} factor={2.1} saturation={0.35} fade speed={0.35} />
-    <Sparkles count={compact ? 45 : 90} scale={[18, 8, 18]} size={2.5} speed={0.18} opacity={0.42} color="#aab7ff" />
-    <Sparkles count={compact ? 18 : 36} scale={[12, 5, 12]} size={5} speed={0.1} opacity={0.18} color="#d59cff" />
-    <mesh position={[-3.8, 0.8, -4]} rotation={[0.2, 0.3, -0.3]} scale={[6.5, 1.8, 2.6]}><sphereGeometry args={[1, 48, 32]} /><meshBasicMaterial color="#673caa" transparent opacity={0.23} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
-    <mesh position={[3.6, -0.5, -5]} rotation={[-0.18, -0.4, 0.25]} scale={[6.2, 1.5, 2.5]}><sphereGeometry args={[1, 48, 32]} /><meshBasicMaterial color="#185d9f" transparent opacity={0.22} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
-    <mesh position={[-0.5, 0.2, -7]} rotation={[0, 0.4, 0.1]} scale={[8, 0.7, 1.3]}><sphereGeometry args={[1, 48, 24]} /><meshBasicMaterial color="#bd4fc7" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[12, 64]} /><meshBasicMaterial color="#111936" transparent opacity={0.23} /></mesh>
-  </group>
+function VideoBackground() {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const video = ref.current
+    if (!video) return
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => {
+      if (preference.matches || document.hidden) video.pause()
+      else void video.play().catch(() => { /* Poster remains visible when autoplay is blocked. */ })
+    }
+    update()
+    preference.addEventListener('change', update)
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      preference.removeEventListener('change', update)
+      document.removeEventListener('visibilitychange', update)
+    }
+  }, [])
+  return <video ref={ref} className="universe-video" muted loop playsInline preload="metadata"
+    poster={`${import.meta.env.BASE_URL}media/universe-poster.jpg`} aria-hidden="true">
+    <source src={`${import.meta.env.BASE_URL}media/universe.mp4`} type="video/mp4" />
+  </video>
 }
 
 function OrbitPath({ radius }: { radius: number }) {
   const points = useMemo(() => Array.from({ length: 96 }, (_, index) => { const angle = (index / 95) * Math.PI * 2; return new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius) }), [radius])
   return <lineLoop rotation={[0.04, 0, 0]}><bufferGeometry><bufferAttribute attach="attributes-position" count={points.length} array={new Float32Array(points.flatMap(point => point.toArray()))} itemSize={3} /></bufferGeometry><lineBasicMaterial color="#6473bd" transparent opacity={0.16} /></lineLoop>
-}
-
-function CelestialBackdrop() {
-  const group = useRef<THREE.Group>(null)
-  const pointer = useRef({ x: 0, y: 0 })
-  useEffect(() => {
-    const move = (event: PointerEvent) => { pointer.current.x = (event.clientX / window.innerWidth - 0.5) * 2; pointer.current.y = (event.clientY / window.innerHeight - 0.5) * 2 }
-    window.addEventListener('pointermove', move)
-    return () => window.removeEventListener('pointermove', move)
-  }, [])
-  useFrame((_, delta) => {
-    if (!group.current) return
-    group.current.rotation.y += delta * 0.008
-    group.current.position.x = THREE.MathUtils.lerp(group.current.position.x, pointer.current.x * 0.18, 0.025)
-    group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, pointer.current.y * -0.12, 0.025)
-  })
-  return <group ref={group}>
-    <Float speed={0.35} rotationIntensity={0.08} floatIntensity={0.15}>
-      <group position={[5.2, 1.3, -6.5]}>
-        <mesh><sphereGeometry args={[1.05, 32, 32]} /><meshStandardMaterial color="#b66b4b" emissive="#4b1c2c" emissiveIntensity={0.22} roughness={0.72} metalness={0.08} /></mesh>
-        <mesh rotation={[Math.PI / 2.7, 0.18, 0]}><torusGeometry args={[1.35, 0.055, 10, 64]} /><meshStandardMaterial color="#d19f75" emissive="#3a2637" emissiveIntensity={0.3} transparent opacity={0.72} /></mesh>
-        <pointLight color="#e29a6d" intensity={1.3} distance={4} />
-      </group>
-    </Float>
-    <Float speed={0.25} rotationIntensity={0.05} floatIntensity={0.12}>
-      <group position={[-5.4, -1.2, -7.5]}>
-        <mesh><sphereGeometry args={[0.82, 32, 32]} /><meshStandardMaterial color="#386eaa" emissive="#122f6c" emissiveIntensity={0.45} roughness={0.48} metalness={0.14} /></mesh>
-        <mesh scale={1.18}><sphereGeometry args={[0.82, 24, 24]} /><meshBasicMaterial color="#4ea4ff" transparent opacity={0.12} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
-        <mesh position={[1.15, 0.16, 0.1]}><sphereGeometry args={[0.19, 20, 20]} /><meshStandardMaterial color="#aaa2cc" roughness={0.9} /></mesh>
-      </group>
-    </Float>
-    <Float speed={0.18} rotationIntensity={0.04} floatIntensity={0.09}><mesh position={[7, -2.4, -10]}><sphereGeometry args={[0.48, 24, 24]} /><meshStandardMaterial color="#8c73bb" emissive="#3d2863" emissiveIntensity={0.4} roughness={0.8} /></mesh></Float>
-    <Float speed={0.12} rotationIntensity={0.03} floatIntensity={0.06}>
-      <group position={[-7.2, 2.2, -12]}>
-        <mesh><sphereGeometry args={[1.5, 48, 48]} /><meshStandardMaterial color="#5c8fc8" emissive="#182d68" emissiveIntensity={0.35} roughness={0.62} metalness={0.16} /></mesh>
-        <mesh scale={1.12}><sphereGeometry args={[1.5, 32, 32]} /><meshBasicMaterial color="#6ea7ff" transparent opacity={0.12} blending={THREE.AdditiveBlending} side={THREE.BackSide} depthWrite={false} /></mesh>
-        <pointLight color="#6ba7ff" intensity={2.2} distance={6} />
-      </group>
-    </Float>
-    <Float speed={0.1} rotationIntensity={0.02} floatIntensity={0.05}>
-      <group position={[8.5, 2.8, -15]}>
-        <mesh><sphereGeometry args={[1.1, 40, 40]} /><meshStandardMaterial color="#c07a55" emissive="#51273e" emissiveIntensity={0.3} roughness={0.78} /></mesh>
-        <mesh rotation={[Math.PI / 3.2, 0.2, 0]}><torusGeometry args={[1.45, 0.08, 12, 64]} /><meshStandardMaterial color="#d6b488" transparent opacity={0.55} /></mesh>
-      </group>
-    </Float>
-  </group>
 }
 
 function Planet({ item, index, selected, onSelect }: { item: Curiosity; index: number; selected: boolean; onSelect: () => void }) {
@@ -201,7 +164,7 @@ function App() {
   const openCreate = () => { if (requireAuth('记录好奇前需要先注册或登录。')) setShowCreate(true) }
   const openExplore = () => { if (requireAuth('查看其他宇宙前需要先注册或登录。')) setShowExplore(true) }
   return <main className="app-shell">
-    <div className="cosmos"><CanvasErrorBoundary><Canvas camera={{ position: [0, 4.8, 8.8], fov: 52 }}><color attach="background" args={['#080b1c']} /><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} /><Nebula /><CelestialBackdrop />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas></CanvasErrorBoundary><div className="cosmos-vignette" /></div>
+    <div className="cosmos"><VideoBackground /><CanvasErrorBoundary><Canvas gl={{ alpha: true }} camera={{ position: [0, 4.8, 8.8], fov: 52 }}><ambientLight intensity={0.25} /><pointLight position={[0, 0, 0]} intensity={12} color="#ffd990" distance={8} />{curiosities.length > 0 && <ConnectionLine active={connection === 'confirmed'} />}{curiosities.map((item, index) => <Planet key={item.id} item={item} index={index} selected={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />)}<OrbitControls enablePan={false} minDistance={4} maxDistance={14} /></Canvas></CanvasErrorBoundary><div className="cosmos-vignette" /></div>
     <header className="topbar"><div className="brand"><span className="brand-mark">✦</span><div><strong>我的秘密宇宙</strong><small>把好奇，放进星图里</small></div></div><div className="topbar-actions"><button className="ghost-button" onClick={openExplore}>漫游示例宇宙 <span>↗</span></button>{user ? <div className="account-menu"><span className="account-name">@{user.username}</span><button className="ghost-button compact" onClick={logout}>退出登录</button></div> : <button className="ghost-button" onClick={() => { setAuthMode('login'); setAuthError(''); setShowAuth(true) }}>登录 / 注册</button>}</div></header>
     <section className={`hero-copy ${curiosities.length ? '' : 'hero-empty'}`}><p className="eyebrow">YOUR CURIOUS UNIVERSE</p><h1>{curiosities.length ? '你的宇宙，正在生长' : '今天，你在好奇什么？'}</h1><p>{curiosities.length ? '每一个问题都在等待一次新的靠近。拖动视野，看看你的星图。' : '先进入你的账户，再把一个微小的问题放进属于你的宇宙。'}</p>{!curiosities.length && <div className="entry-actions"><button className="primary-button" onClick={openCreate}>记录你的好奇 <span>＋</span></button><button className="secondary-button entry-secondary" onClick={openExplore}>查看别人的宇宙 <span>↗</span></button></div>}</section>
     <aside className="stats-panel"><span><b>{curiosities.length}</b> 个好奇点</span><i /> <span><b>{curiosities.reduce((n, x) => n + x.trails.length, 0)}</b> 条轨迹</span></aside>
